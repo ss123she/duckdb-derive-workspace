@@ -71,63 +71,41 @@ pub trait ColumnType {
     fn sql_type() -> &'static str;
 }
 
-impl ColumnType for i32 {
-    fn sql_type() -> &'static str {
-        "INTEGER"
-    }
+macro_rules! impl_column_type {
+    ($($ty:ty => $sql:expr),* $(,)?) => {
+        $(
+            impl ColumnType for $ty {
+                fn sql_type() -> &'static str {
+                    $sql
+                }
+            }
+        )*
+    };
 }
-impl ColumnType for String {
-    fn sql_type() -> &'static str {
-        "TEXT"
-    }
+
+impl_column_type! {
+    i8  => "TINYINT",
+    i16 => "SMALLINT",
+    i32 => "INTEGER",
+    i64 => "BIGINT",
+
+    u8  => "UTINYINT",
+    u16 => "USMALLINT",
+    u32 => "UINTEGER",
+    u64 => "UBIGINT",
+
+    f32 => "FLOAT",
+    f64 => "DOUBLE",
+
+    bool => "BOOLEAN",
+
+    String       => "TEXT",
+    &'static str => "TEXT",
+    Vec<u8>      => "BLOB",
 }
-impl ColumnType for f64 {
+
+impl<T: ColumnType> ColumnType for Option<T> {
     fn sql_type() -> &'static str {
-        "DOUBLE"
-    }
-}
-impl ColumnType for bool {
-    fn sql_type() -> &'static str {
-        "BOOLEAN"
-    }
-}
-impl ColumnType for i64 {
-    fn sql_type() -> &'static str {
-        "BIGINT"
-    }
-}
-impl ColumnType for i16 {
-    fn sql_type() -> &'static str {
-        "SMALLINT"
-    }
-}
-impl ColumnType for i8 {
-    fn sql_type() -> &'static str {
-        "TINYINT"
-    }
-}
-impl ColumnType for u32 {
-    fn sql_type() -> &'static str {
-        "UINTEGER"
-    }
-}
-impl ColumnType for u64 {
-    fn sql_type() -> &'static str {
-        "UBIGINT"
-    }
-}
-impl ColumnType for f32 {
-    fn sql_type() -> &'static str {
-        "FLOAT"
-    }
-}
-impl ColumnType for Vec<u8> {
-    fn sql_type() -> &'static str {
-        "BLOB"
-    }
-}
-impl ColumnType for &'static str {
-    fn sql_type() -> &'static str {
-        "TEXT"
+        T::sql_type()
     }
 }
