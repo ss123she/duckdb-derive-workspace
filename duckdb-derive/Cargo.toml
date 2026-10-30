@@ -9,6 +9,10 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[package.metadata.docs.rs]
+features = ["bundled", "extra-types"]
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 duckdb-derive-macros = { workspace = true }
 duckdb = ">=1.10000, <2.0"
@@ -22,9 +26,10 @@ serde_json   = { version = "1",   optional = true }
 duckdb = { version = "1.20000", features = ["bundled"] }
 
 [features]
-default = []
+default      = []
+bundled      = ["duckdb/bundled"]
 chrono       = ["dep:chrono", "duckdb/chrono"]
 uuid         = ["dep:uuid", "duckdb/uuid"]
 rust_decimal = ["dep:rust_decimal", "duckdb/rust_decimal"]
 serde_json   = ["dep:serde_json", "duckdb/serde_json"]
-extra-types = ["chrono", "uuid", "rust_decimal", "serde_json"]
+extra-types  = ["chrono", "uuid", "rust_decimal", "serde_json"]
