@@ -6,7 +6,10 @@ resolver = '2'
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
 repository = "https://github.com/ss123she/duckdb-derive-workspace"
+keywords = ["duckdb", "derive", "sql", "database"]
+categories = ["database"]
 
 [workspace.dependencies]
 duckdb-derive-macros = { version = "0.1.0", path = "duckdb-derive-macros" }

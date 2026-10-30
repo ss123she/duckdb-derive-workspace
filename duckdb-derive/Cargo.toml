@@ -1,11 +1,13 @@
 [package]
 name = "duckdb-derive"
 description = "Derive macros for DuckDB in Rust."
-
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
+readme.workspace = true
 license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 duckdb-derive-macros = { workspace = true }

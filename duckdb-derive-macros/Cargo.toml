@@ -1,10 +1,13 @@
 [package]
 name = "duckdb-derive-macros"
-
+description = "Procedural macros for duckdb-derive"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
+readme.workspace = true
 license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [lib]
 proc-macro = true
