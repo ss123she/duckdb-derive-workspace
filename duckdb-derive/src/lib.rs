@@ -113,6 +113,9 @@ impl DuckDbExt for duckdb::Connection {
 
 pub trait ColumnType {
     fn sql_type() -> &'static str;
+    fn is_nullable() -> bool {
+        false
+    }
 }
 
 macro_rules! impl_column_type {
@@ -151,5 +154,9 @@ impl_column_type! {
 impl<T: ColumnType> ColumnType for Option<T> {
     fn sql_type() -> &'static str {
         T::sql_type()
+    }
+
+    fn is_nullable() -> bool {
+        true
     }
 }

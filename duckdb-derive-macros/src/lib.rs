@@ -9,6 +9,8 @@ struct FieldInfo<'a> {
     is_primary_key: bool,
     foreign_key: Option<String>,
     skip: bool,
+    sql_type_override: Option<String>,
+    extra: Option<String>,
 }
 
 #[proc_macro_derive(FromRow, attributes(duckdb))]
@@ -110,7 +112,23 @@ pub fn derive_to_row(input: TokenStream) -> TokenStream {
 pub fn derive_table(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
-    let table_name = name.to_string().to_lowercase();
+    let mut table_name = name.to_string().to_lowercase();
+
+    for attr in &input.attrs {
+        if attr.path().is_ident("duckdb") {
+            if let Err(e) = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("table") {
+                    let s: syn::LitStr = meta.value()?.parse()?;
+                    table_name = s.value();
+                    Ok(())
+                } else {
+                    Err(meta.error("Supported struct attributes: table"))
+                }
+            }) {
+                return e.to_compile_error().into();
+            }
+        }
+    }
 
     let fields_info = match extract_fields(&input) {
         Ok(fields) => fields,
@@ -120,22 +138,46 @@ pub fn derive_table(input: TokenStream) -> TokenStream {
     let column_definitions = fields_info.iter().filter(|f| !f.skip).map(|f| {
         let col_name = &f.column_name;
         let field_ty = f.ty;
-        let mut constraints = String::new();
+        let is_pk = f.is_primary_key;
 
+        let mut constraints = Vec::new();
         if f.is_primary_key {
-            constraints.push_str(" PRIMARY KEY");
+            constraints.push("PRIMARY KEY".to_string());
+        }
+        if let Some(fk) = &f.foreign_key {
+            constraints.push(format!("REFERENCES {fk}"));
+        }
+        if let Some(extra) = &f.extra {
+            constraints.push(extra.clone());
         }
 
-        if let Some(fk) = &f.foreign_key {
-            constraints.push_str(&format!(" REFERENCES {}", fk));
-        }
+        let extra_has_not_null = f
+            .extra
+            .as_deref()
+            .map_or(false, |e| e.to_uppercase().contains("NOT NULL"));
+
+        let constraints_str = if constraints.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", constraints.join(" "))
+        };
+
+        let col_type_expr = match &f.sql_type_override {
+            Some(custom) => quote! { #custom },
+            None => quote! { <#field_ty as duckdb_derive::ColumnType>::sql_type() },
+        };
+
         quote! {
-            format!(
-                "{} {}{}",
-                #col_name,
-                <#field_ty as duckdb_derive::ColumnType>::sql_type(),
-                #constraints
-            )
+            {
+                let is_null = <#field_ty as duckdb_derive::ColumnType>::is_nullable();
+                let auto_not_null = if !is_null && !#is_pk && !#extra_has_not_null {
+                    " NOT NULL"
+                } else {
+                    ""
+                };
+
+                format!("\"{}\" {}{}{}", #col_name, #col_type_expr, auto_not_null, #constraints_str)
+            }
         }
     });
 
@@ -144,7 +186,7 @@ pub fn derive_table(input: TokenStream) -> TokenStream {
             const TABLE_NAME: &'static str = #table_name;
 
             fn create_table_sql() -> String {
-                let cols = vec![
+                let cols = [
                     #(#column_definitions),*
                 ];
 
@@ -188,6 +230,8 @@ fn parse_field<'a>(f: &'a syn::Field) -> syn::Result<FieldInfo<'a>> {
     let mut is_primary_key = false;
     let mut foreign_key = None;
     let mut skip = false;
+    let mut sql_type_override: Option<String> = None;
+    let mut extra: Option<String> = None;
 
     for attr in &f.attrs {
         if attr.path().is_ident("duckdb") {
@@ -203,6 +247,17 @@ fn parse_field<'a>(f: &'a syn::Field) -> syn::Result<FieldInfo<'a>> {
                     let s: syn::LitStr = value.parse()?;
                     column_name = s.value();
                     Ok(())
+                } else if meta.path.is_ident("sql_type") {
+                    let value = meta.value()?;
+                    let s: syn::LitStr = value.parse()?;
+                    sql_type_override = Some(s.value());
+                    Ok(())
+                }
+                else if meta.path.is_ident("extra") {
+                    let value = meta.value()?;
+                    let s: syn::LitStr = value.parse()?;
+                    extra = Some(s.value());
+                    Ok(())
                 } else if meta.path.is_ident("foreign_key") {
                     let value = meta.value()?;
                     let s: syn::LitStr = value.parse()?;
@@ -210,7 +265,7 @@ fn parse_field<'a>(f: &'a syn::Field) -> syn::Result<FieldInfo<'a>> {
                     Ok(())
                 } else {
                     Err(meta.error(
-                        "Unknown duckdb attribute. Supported: primary_key, skip, rename, foreign_key",
+                        "Unknown duckdb attribute. Supported: primary_key, skip, rename, foreign_key, sql_type, extra",
                     ))
                 }
             })?;
@@ -224,5 +279,7 @@ fn parse_field<'a>(f: &'a syn::Field) -> syn::Result<FieldInfo<'a>> {
         is_primary_key,
         foreign_key,
         skip,
+        sql_type_override,
+        extra,
     })
 }
