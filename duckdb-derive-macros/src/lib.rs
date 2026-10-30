@@ -2,18 +2,22 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, parse_macro_input};
 
-#[proc_macro_derive(FromRow, attributes(duckdb))]
-pub fn derive_from_row(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = input.ident;
-
-    let fields = match input.data {
+fn data_fields(data: Data) -> syn::punctuated::Punctuated<syn::Field, syn::token::Comma> {
+    match data {
         Data::Struct(data) => match data.fields {
             Fields::Named(fields) => fields.named,
             _ => panic!("FromRow can only be derived on structs with named fields"),
         },
         _ => panic!("FromRow can only be derived on structs"),
-    };
+    }
+}
+
+#[proc_macro_derive(FromRow, attributes(duckdb))]
+pub fn derive_from_row(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = input.ident;
+
+    let fields = data_fields(input.data);
 
     let field_count = fields.len();
 
@@ -52,6 +56,40 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+#[proc_macro_derive(ToRow, attributes(duckdb))]
+pub fn derive_to_row(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let fields = data_fields(input.data);
+    let field_count = fields.len();
+
+    let field_getters = fields.iter().map(|f| {
+        let field_ident = &f.ident;
+        quote! {
+            &self.#field_ident as &dyn duckdb::ToSql
+        }
+    });
+
+    let placeholders = vec!["?"; field_count].join(", ");
+
+    let name = input.ident;
+
+    let expanded = quote! {
+        impl duckdb_derive::ToRow for #name {
+            const COLUMN_COUNT: usize = #field_count;
+            const PLACEHOLDERS: &'static str = #placeholders;
+
+            fn to_params(&self) -> Vec<&dyn duckdb::ToSql> {
+                vec![
+                    #(#field_getters),*
+                ]
+            }
+        }
+    };
+
+    expanded.into()
+}
+
 #[proc_macro_derive(Table, attributes(duckdb))]
 pub fn derive_table(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -59,13 +97,7 @@ pub fn derive_table(input: TokenStream) -> TokenStream {
 
     let table_name = name.to_string().to_lowercase();
 
-    let fields = match input.data {
-        Data::Struct(data) => match data.fields {
-            Fields::Named(fields) => fields.named,
-            _ => panic!("Table can only be derived on structs with named fields"),
-        },
-        _ => panic!("Table can only be derived on structs"),
-    };
+    let fields = data_fields(input.data);
 
     let column_definitions = fields.iter().map(|f| {
         let field_name = f.ident.as_ref().unwrap().to_string();

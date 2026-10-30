@@ -1,9 +1,16 @@
-pub use duckdb_derive_macros::FromRow;
+pub use duckdb_derive_macros::*;
 
 pub trait FromRow: Sized {
     type Indices;
     fn init_indices(stmt: &duckdb::Statement<'_>) -> Result<Self::Indices, duckdb::Error>;
     fn from_row(row: &duckdb::Row<'_>, indices: &Self::Indices) -> Result<Self, duckdb::Error>;
+}
+
+pub trait ToRow {
+    const COLUMN_COUNT: usize;
+    const PLACEHOLDERS: &'static str;
+
+    fn to_params(&self) -> Vec<&dyn duckdb::ToSql>;
 }
 
 pub trait Table {
@@ -18,6 +25,8 @@ pub trait DuckDbExt {
         params: P,
     ) -> Result<Vec<T>, duckdb::Error>;
     fn create_table<T: Table>(&self) -> Result<usize, duckdb::Error>;
+    fn insert<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error>;
+    fn insert_batch<T: Table + ToRow>(&self, items: &[T]) -> Result<(), duckdb::Error>;
 }
 
 impl DuckDbExt for duckdb::Connection {
@@ -40,6 +49,21 @@ impl DuckDbExt for duckdb::Connection {
 
     fn create_table<T: Table>(&self) -> Result<usize, duckdb::Error> {
         self.execute(&T::create_table_sql(), [])
+    }
+
+    fn insert<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error> {
+        let sql = format!("INSERT INTO {} VALUES ({})", T::TABLE_NAME, T::PLACEHOLDERS);
+        let params = item.to_params();
+        self.execute(&sql, params.as_slice())
+    }
+
+    fn insert_batch<T: Table + ToRow>(&self, items: &[T]) -> Result<(), duckdb::Error> {
+        let mut appender = self.appender(T::TABLE_NAME)?;
+        for item in items {
+            appender.append_row(item.to_params().as_slice())?;
+        }
+        appender.flush()?;
+        Ok(())
     }
 }
 
