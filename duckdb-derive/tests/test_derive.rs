@@ -66,5 +66,23 @@ fn full_test() -> duckdb::Result<()> {
     assert_eq!(employees[0].dept_id, 1);
     assert_eq!(employees[1].name, "Scrooge McDuck");
     assert_eq!(employees[1].dept_id, 2);
+    assert_eq!(employees[0].debug_calc, 0);
     Ok(())
+}
+
+#[test]
+fn test_transaction() -> duckdb::Result<()> {
+    let mut conn = Connection::open_in_memory()?;
+    let tx = conn.transaction()?;
+
+    tx.create_table::<Department>()?;
+    tx.insert_batch(&[Department {
+        id: 1,
+        name: "Cartoons".into(),
+    }])?;
+
+    let res: Vec<Department> = tx.query_as("FROM department", [])?;
+    assert_eq!(res.len(), 1);
+
+    tx.commit()
 }

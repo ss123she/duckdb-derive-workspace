@@ -1,9 +1,11 @@
 [package]
 name = "duckdb-derive"
-version = "0.1.0"
-edition = "2024"
 description = "Derive macros for DuckDB in Rust."
-license = "MIT OR Apache-2.0"
+
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 duckdb = ">=1.10000, <2.0"
