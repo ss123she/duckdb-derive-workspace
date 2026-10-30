@@ -13,6 +13,7 @@ struct FieldInfo<'a> {
     extra: Option<String>,
 }
 
+/// Derives `FromRow` for deserializing query rows by column names.
 #[proc_macro_derive(FromRow, attributes(duckdb))]
 pub fn derive_from_row(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -70,6 +71,9 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Derives `ToRow` for converting struct fields into positional SQL parameters.
+///
+/// Used by `conn.insert()` and `conn.insert_batch()`.
 #[proc_macro_derive(ToRow, attributes(duckdb))]
 pub fn derive_to_row(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -108,6 +112,21 @@ pub fn derive_to_row(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Derives `Table` to generate `CREATE TABLE IF NOT EXISTS` DDL.
+///
+/// Non-[`Option`] fields automatically receive `NOT NULL` constraints.
+/// Column names are escaped with double quotes (`"col"`).
+///
+/// # Struct Attributes (`#[duckdb(...)]`)
+/// - `table = "name"`: overrides the target table name (default: lowercase struct ident).
+///
+/// # Field Attributes (`#[duckdb(...)]`)
+/// - `primary_key`: appends `PRIMARY KEY` (suppresses duplicate `NOT NULL`).
+/// - `foreign_key = "tbl(col)"`: appends `REFERENCES tbl(col)`.
+/// - `sql_type = "TYPE"`: overrides type inference (e.g. `"DECIMAL(12, 2)"`, `"VARCHAR(50)"`).
+/// - `extra = "SQL"`: appends raw SQL constraints (e.g. `"DEFAULT 0"`, `"CHECK (x > 0)"`).
+/// - `rename = "name"`: overrides the SQL column name.
+/// - `skip`: excludes the field from the table schema.
 #[proc_macro_derive(Table, attributes(duckdb))]
 pub fn derive_table(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
