@@ -2,34 +2,69 @@ use duckdb::Connection;
 use duckdb_derive::{DuckDbExt, FromRow, Table, ToRow};
 
 #[derive(Debug, PartialEq, FromRow, Table, ToRow)]
-struct Ducks {
+struct Department {
+    #[duckdb(primary_key)]
     id: i32,
     name: String,
 }
 
+#[derive(Debug, PartialEq, FromRow, Table, ToRow)]
+struct Employee {
+    #[duckdb(primary_key)]
+    id: i32,
+
+    #[duckdb(rename = "full_name")]
+    name: String,
+
+    #[duckdb(foreign_key = "department(id)")]
+    dept_id: i32,
+
+    #[duckdb(skip)]
+    debug_calc: i32,
+}
+
 #[test]
-fn test_full_cycle() -> duckdb::Result<()> {
+fn full_test() -> duckdb::Result<()> {
     let conn = Connection::open_in_memory()?;
 
-    conn.create_table::<Ducks>()?;
+    conn.create_table::<Department>()?;
+    conn.create_table::<Employee>()?;
 
     conn.insert_batch(&[
-        Ducks {
+        Department {
             id: 1,
-            name: "Scrooge".into(),
+            name: "Cartoons".into(),
         },
-        Ducks {
+        Department {
             id: 2,
-            name: "Donald".into(),
-        },
-        Ducks {
-            id: 3,
-            name: "Darkwing Duck".into(),
+            name: "Treasure Hunting".into(),
         },
     ])?;
 
-    let ducks: Vec<Ducks> = conn.query_as("SELECT id, name FROM ducks ORDER BY id", [])?;
+    conn.insert_batch(&[
+        Employee {
+            id: 101,
+            name: "Donald Duck".into(),
+            dept_id: 1,
+            debug_calc: 10,
+        },
+        Employee {
+            id: 102,
+            name: "Scrooge McDuck".into(),
+            dept_id: 2,
+            debug_calc: 20,
+        },
+    ])?;
 
-    assert_eq!(ducks.len(), 3);
+    let employees: Vec<Employee> = conn.query_as(
+        "SELECT id, full_name, dept_id FROM employee ORDER BY id",
+        [],
+    )?;
+
+    assert_eq!(employees.len(), 2);
+    assert_eq!(employees[0].name, "Donald Duck");
+    assert_eq!(employees[0].dept_id, 1);
+    assert_eq!(employees[1].name, "Scrooge McDuck");
+    assert_eq!(employees[1].dept_id, 2);
     Ok(())
 }

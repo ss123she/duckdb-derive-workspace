@@ -91,3 +91,43 @@ impl ColumnType for bool {
         "BOOLEAN"
     }
 }
+impl ColumnType for i64 {
+    fn sql_type() -> &'static str {
+        "BIGINT"
+    }
+}
+impl ColumnType for i16 {
+    fn sql_type() -> &'static str {
+        "SMALLINT"
+    }
+}
+impl ColumnType for i8 {
+    fn sql_type() -> &'static str {
+        "TINYINT"
+    }
+}
+impl ColumnType for u32 {
+    fn sql_type() -> &'static str {
+        "UINTEGER"
+    }
+}
+impl ColumnType for u64 {
+    fn sql_type() -> &'static str {
+        "UBIGINT"
+    }
+}
+impl ColumnType for f32 {
+    fn sql_type() -> &'static str {
+        "FLOAT"
+    }
+}
+impl ColumnType for Vec<u8> {
+    fn sql_type() -> &'static str {
+        "BLOB"
+    }
+}
+impl ColumnType for &'static str {
+    fn sql_type() -> &'static str {
+        "TEXT"
+    }
+}
