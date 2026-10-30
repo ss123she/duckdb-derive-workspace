@@ -184,6 +184,19 @@ impl_column_type! {
     Vec<u8>      => "BLOB",
 }
 
+#[cfg(feature = "chrono")]
+impl_column_type! {
+    chrono::NaiveDate             => "DATE",
+    chrono::NaiveTime             => "TIME",
+    chrono::NaiveDateTime         => "TIMESTAMP",
+    chrono::DateTime<chrono::Utc> => "TIMESTAMPTZ",
+}
+
+#[cfg(feature = "uuid")]
+impl_column_type! {
+    uuid::Uuid => "UUID",
+}
+
 impl<T: ColumnType> ColumnType for Option<T> {
     fn sql_type() -> &'static str {
         T::sql_type()
@@ -191,5 +204,19 @@ impl<T: ColumnType> ColumnType for Option<T> {
 
     fn is_nullable() -> bool {
         true
+    }
+}
+
+#[cfg(feature = "rust_decimal")]
+impl ColumnType for rust_decimal::Decimal {
+    fn sql_type() -> &'static str {
+        "DECIMAL"
+    }
+}
+
+#[cfg(feature = "serde_json")]
+impl ColumnType for serde_json::Value {
+    fn sql_type() -> &'static str {
+        "JSON"
     }
 }

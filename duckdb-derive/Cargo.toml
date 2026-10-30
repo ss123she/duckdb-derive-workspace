@@ -8,8 +8,21 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
+duckdb-derive-macros = { workspace = true }
 duckdb = ">=1.10000, <2.0"
-duckdb-derive-macros = { version = "0.1.0", path = "../duckdb-derive-macros" }
+
+chrono       = { version = "0.4", optional = true, default-features = false, features = ["std", "clock"] }
+uuid         = { version = "1",   optional = true, default-features = false }
+rust_decimal = { version = "1",   optional = true, default-features = false }
+serde_json   = { version = "1",   optional = true }
 
 [dev-dependencies]
 duckdb = { version = "1.20000", features = ["bundled"] }
+
+[features]
+default = []
+chrono       = ["dep:chrono", "duckdb/chrono"]
+uuid         = ["dep:uuid", "duckdb/uuid"]
+rust_decimal = ["dep:rust_decimal", "duckdb/rust_decimal"]
+serde_json   = ["dep:serde_json", "duckdb/serde_json"]
+extra-types = ["chrono", "uuid", "rust_decimal", "serde_json"]
