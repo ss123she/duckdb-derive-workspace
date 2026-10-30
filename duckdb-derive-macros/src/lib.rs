@@ -51,3 +51,48 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
 
     expanded.into()
 }
+
+#[proc_macro_derive(Table, attributes(duckdb))]
+pub fn derive_table(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = input.ident;
+
+    let table_name = name.to_string().to_lowercase();
+
+    let fields = match input.data {
+        Data::Struct(data) => match data.fields {
+            Fields::Named(fields) => fields.named,
+            _ => panic!("Table can only be derived on structs with named fields"),
+        },
+        _ => panic!("Table can only be derived on structs"),
+    };
+
+    let column_definitions = fields.iter().map(|f| {
+        let field_name = f.ident.as_ref().unwrap().to_string();
+        let field_ty = &f.ty;
+
+        quote! {
+            format!("{} {}", #field_name, <#field_ty as duckdb_derive::ColumnType>::sql_type())
+        }
+    });
+
+    let expanded = quote! {
+        impl duckdb_derive::Table for #name {
+            const TABLE_NAME: &'static str = #table_name;
+
+            fn create_table_sql() -> String {
+                let cols = vec![
+                    #(#column_definitions),*
+                ];
+
+                format!(
+                    "CREATE TABLE IF NOT EXISTS {} ({});",
+                    Self::TABLE_NAME,
+                    cols.join(", ")
+                )
+            }
+        }
+    };
+
+    expanded.into()
+}
