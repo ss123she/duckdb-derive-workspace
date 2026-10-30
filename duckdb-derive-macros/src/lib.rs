@@ -15,20 +15,35 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
         _ => panic!("FromRow can only be derived on structs"),
     };
 
-    let getters = fields.iter().map(|f| {
-        let field_name = &f.ident;
-        let column_name = field_name.as_ref().unwrap().to_string();
+    let field_count = fields.len();
 
+    let init_fields = fields.iter().map(|f| {
+        let column_name = f.ident.as_ref().unwrap().to_string();
         quote! {
-            #field_name: row.get(#column_name)?,
+            stmt.column_index(#column_name)?
+        }
+    });
+
+    let read_fields = fields.iter().enumerate().map(|(idx, f)| {
+        let field_name = &f.ident;
+        quote! {
+            #field_name: row.get(indices[#idx])?,
         }
     });
 
     let expanded = quote! {
         impl duckdb_derive::FromRow for #name {
-            fn from_row(row: &duckdb::Row<'_>) -> Result<Self, duckdb::Error> {
+            type Indices = [usize; #field_count];
+
+            fn init_indices(stmt: &duckdb::Statement<'_>) -> Result<Self::Indices, duckdb::Error> {
+                Ok([
+                    #(#init_fields),*
+                ])
+            }
+
+            fn from_row(row: &duckdb::Row<'_>, indices: &Self::Indices) -> Result<Self, duckdb::Error> {
                 Ok(Self {
-                    #(#getters)*
+                    #(#read_fields)*
                 })
             }
         }
