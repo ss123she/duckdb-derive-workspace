@@ -444,7 +444,7 @@ dependencies = [
 
 [[package]]
 name = "duckdb-derive"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "duckdb",
@@ -456,7 +456,7 @@ dependencies = [
 
 [[package]]
 name = "duckdb-derive-macros"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "quote",
  "syn 3.0.9",
