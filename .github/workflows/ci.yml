@@ -19,6 +19,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      - name: Fix libduckdb-sys cache conflict
+        run: rm -rf target/debug/build/libduckdb-sys-*
+
       - name: Run Check
         run: cargo check --all-features
 
