@@ -3,7 +3,7 @@ members = [ "duckdb-derive", "duckdb-derive-macros" ]
 resolver = '2'
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -12,4 +12,4 @@ keywords = ["duckdb", "derive", "sql", "database"]
 categories = ["database"]
 
 [workspace.dependencies]
-duckdb-derive-macros = { version = "0.1.0", path = "duckdb-derive-macros" }
+duckdb-derive-macros = { version = "0.1.1", path = "duckdb-derive-macros" }
