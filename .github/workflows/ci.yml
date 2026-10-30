@@ -6,9 +6,18 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  SCCACHE_GHA_ENABLED: "true"
+  CC: sccache cc
+  CXX: sccache c++
 
 jobs:
   test:
@@ -17,13 +26,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
+      - uses: mozilla-actions/sccache-action@v0.0.9
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Run Clean
-        run: cargo clean
-
-      - name: Run Check
-        run: cargo check --all-features
+      - name: Reset libduckdb-sys build state
+        run: |
+          rm -rf target/debug/build/libduckdb-sys-*
+          rm -rf target/debug/.fingerprint/libduckdb-sys-*
 
       - name: Run Tests
-        run: cargo test --all-features
+        run: cargo test --all-features --locked
