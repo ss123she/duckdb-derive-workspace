@@ -71,9 +71,7 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-/// Derives `ToRow` for converting struct fields into positional SQL parameters.
-///
-/// Used by `conn.insert()` and `conn.insert_batch()`.
+/// Derives `ToRow` to convert struct fields into SQL parameters.
 #[proc_macro_derive(ToRow, attributes(duckdb))]
 pub fn derive_to_row(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -114,19 +112,18 @@ pub fn derive_to_row(input: TokenStream) -> TokenStream {
 
 /// Derives `Table` to generate `CREATE TABLE IF NOT EXISTS` DDL.
 ///
-/// Non-[`Option`] fields automatically receive `NOT NULL` constraints.
-/// Column names are escaped with double quotes (`"col"`).
+/// Non-`Option` fields default to `NOT NULL`. Column and table names are escaped with `"`.
 ///
 /// # Struct Attributes (`#[duckdb(...)]`)
-/// - `table = "name"`: overrides the target table name (default: lowercase struct ident).
+/// - `table = "name"`: override table name (default: lowercase struct name).
 ///
 /// # Field Attributes (`#[duckdb(...)]`)
-/// - `primary_key`: appends `PRIMARY KEY` (suppresses duplicate `NOT NULL`).
-/// - `foreign_key = "tbl(col)"`: appends `REFERENCES tbl(col)`.
-/// - `sql_type = "TYPE"`: overrides type inference (e.g. `"DECIMAL(12, 2)"`, `"VARCHAR(50)"`).
-/// - `extra = "SQL"`: appends raw SQL constraints (e.g. `"DEFAULT 0"`, `"CHECK (x > 0)"`).
-/// - `rename = "name"`: overrides the SQL column name.
-/// - `skip`: excludes the field from the table schema.
+/// - `primary_key`: mark as `PRIMARY KEY` (suppresses duplicate `NOT NULL`).
+/// - `foreign_key = "tbl(col)"`: add `REFERENCES tbl(col)`.
+/// - `sql_type = "TYPE"`: override inferred SQL type.
+/// - `extra = "SQL"`: append raw SQL (e.g. `DEFAULT 0`, `CHECK (...)`).
+/// - `rename = "name"`: custom SQL column name.
+/// - `skip`: exclude field from schema.
 #[proc_macro_derive(Table, attributes(duckdb))]
 pub fn derive_table(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -210,7 +207,7 @@ pub fn derive_table(input: TokenStream) -> TokenStream {
                 ];
 
                 format!(
-                    "CREATE TABLE IF NOT EXISTS {} ({});",
+                    "CREATE TABLE IF NOT EXISTS \"{}\" ({});",
                     Self::TABLE_NAME,
                     cols.join(", ")
                 )

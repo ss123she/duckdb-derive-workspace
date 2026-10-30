@@ -125,7 +125,11 @@ impl DuckDbExt for duckdb::Connection {
     }
 
     fn insert<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error> {
-        let sql = format!("INSERT INTO {} VALUES ({})", T::TABLE_NAME, T::PLACEHOLDERS);
+        let sql = format!(
+            "INSERT INTO \"{}\" VALUES ({})",
+            T::TABLE_NAME,
+            T::PLACEHOLDERS
+        );
         let params = item.to_params();
         self.execute(&sql, params.as_slice())
     }
