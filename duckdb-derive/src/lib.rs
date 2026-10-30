@@ -1,14 +1,24 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+pub use duckdb_derive_macros::FromRow;
+
+use duckdb::{Connection, Error, Params, Row};
+
+pub trait FromRow: Sized {
+    fn from_row(row: &Row<'_>) -> Result<Self, Error>;
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub trait DuckDbExt {
+    fn query_as<'a, T: FromRow, P: Params>(&'a self, sql: &str, params: P)
+    -> Result<Vec<T>, Error>;
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+impl DuckDbExt for Connection {
+    fn query_as<'a, T: FromRow, P: Params>(
+        &'a self,
+        sql: &str,
+        params: P,
+    ) -> Result<Vec<T>, Error> {
+        let mut stmt = self.prepare(sql)?;
+        let rows = stmt.query_map(params, |row| T::from_row(row))?;
+        rows.collect()
     }
 }
