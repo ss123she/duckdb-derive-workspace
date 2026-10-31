@@ -25,20 +25,40 @@ pub fn derive_to_row(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Derives `Table` to generate `CREATE TABLE IF NOT EXISTS` DDL.
+/// Derives `Table`, which generates `CREATE TABLE IF NOT EXISTS` DDL and exposes the table name and primary key.
 ///
-/// Non-`Option` fields default to `NOT NULL`.
+/// Non-`Option` fields get `NOT NULL`.
 ///
-/// # Struct Attributes (`#[duckdb(...)]`)
-/// - `table = "name"`: override table name (default: lowercase struct name).
+/// # Struct attributes
+/// - `table = "name"`: override the table name (default: lowercased struct name).
 ///
-/// # Field Attributes (`#[duckdb(...)]`)
-/// - `primary_key`: mark as `PRIMARY KEY` (suppresses duplicate `NOT NULL`).
+/// # Field attributes
+/// - `primary_key`: mark as `PRIMARY KEY`. Several fields make a composite
+///   key (one table-level constraint, in field order).
 /// - `foreign_key = "tbl(col)"`: add `REFERENCES tbl(col)`.
-/// - `sql_type = "TYPE"`: override inferred SQL type.
-/// - `extra = "SQL"`: append raw SQL (e.g. `DEFAULT 0`, `CHECK (...)`).
-/// - `rename = "name"`: custom SQL column name.
-/// - `skip`: exclude field from schema.
+/// - `unique`: add `UNIQUE`.
+/// - `default = "SQL"`: add `DEFAULT SQL`. The value is raw SQL, so string defaults need inner quotes: `default = "'new'"`.
+/// - `check = "SQL"`: add `CHECK (SQL)`.
+/// - `sql_type = "TYPE"`: override the inferred SQL type.
+/// - `extra = "SQL"`: append any other raw SQL.
+/// - `rename = "name"`: custom column name.
+/// - `skip`: exclude the field from the schema.
+///
+/// # Example
+/// ```ignore
+/// #[derive(Table)]
+/// #[duckdb(table = "ducks")]
+/// struct Duck {
+///     #[duckdb(primary_key)]
+///     id: i32,
+///     #[duckdb(unique)]
+///     name: String,
+///     #[duckdb(default = "0", check = "age >= 0")]
+///     age: u8,
+///     bio: Option<String>,
+/// }
+/// ```
+
 #[proc_macro_derive(Table, attributes(duckdb))]
 pub fn derive_table(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

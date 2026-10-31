@@ -9,6 +9,9 @@ pub struct FieldInfo<'a> {
     pub skip: bool,
     pub sql_type_override: Option<String>,
     pub extra: Option<String>,
+    pub unique: bool,
+    pub default: Option<String>,
+    pub check: Option<String>,
 }
 
 pub fn extract_fields(input: &DeriveInput) -> syn::Result<Vec<FieldInfo<'_>>> {
@@ -44,6 +47,9 @@ fn parse_field(f: &syn::Field) -> syn::Result<FieldInfo<'_>> {
         skip: false,
         sql_type_override: None,
         extra: None,
+        unique: false,
+        default: None,
+        check: None,
     };
 
     for attr in &f.attrs {
@@ -62,6 +68,12 @@ fn parse_field(f: &syn::Field) -> syn::Result<FieldInfo<'_>> {
                 info.sql_type_override = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             } else if path.is_ident("extra") {
                 info.extra = Some(meta.value()?.parse::<syn::LitStr>()?.value());
+            } else if path.is_ident("unique") {
+                info.unique = true;
+            } else if path.is_ident("default") {
+                info.default = Some(meta.value()?.parse::<syn::LitStr>()?.value());
+            } else if path.is_ident("check") {
+                info.check = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             } else if path.is_ident("foreign_key") {
                 info.foreign_key = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             } else {

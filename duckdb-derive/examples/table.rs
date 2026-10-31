@@ -1,56 +1,97 @@
+//! `duckdb-derive` example of schema, CRUD, queries and a composite key.
+//!
+//! Run with `cargo run --example table`.
+
 use duckdb::Connection;
 use duckdb_derive::{DuckDbExt, FromRow, Table, ToRow};
 
 #[derive(Debug, PartialEq, FromRow, Table, ToRow)]
-struct Ducks {
+struct Duck {
     #[duckdb(primary_key)]
     id: i32,
-    #[duckdb(sql_type = "TEXT", extra = "NOT NULL CHECK (length(name) > 0)")]
     name: String,
+}
 
-    age: u8,
-    wealth: f64,
-    can_fly: bool,
-    bio: Option<String>,
+/// Several `primary_key` fields make a composite key.
+#[derive(Debug, PartialEq, FromRow, Table, ToRow)]
+struct Enrollment {
+    #[duckdb(primary_key)]
+    duck_id: i32,
+    #[duckdb(primary_key)]
+    course_id: i32,
+    #[duckdb(default = "0", check = "grade >= 0")]
+    grade: i32,
+}
+
+fn duck(id: i32, name: &str) -> Duck {
+    Duck {
+        id,
+        name: name.into(),
+    }
 }
 
 fn main() -> duckdb::Result<()> {
-    let db_path = "target/table.duckdb";
+    let conn = Connection::open_in_memory()?;
 
-    let _ = std::fs::remove_file(db_path);
+    // CREATE TABLE IF NOT EXISTS "duck" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL);
+    conn.create_table::<Duck>()?;
+    println!("{}", Duck::create_table_sql());
 
-    let conn = Connection::open(db_path)?;
+    // Bulk insert via the Appender, then a single insert.
+    conn.insert_batch(&[duck(1, "Donald Duck"), duck(2, "Scrooge McDuck")])?;
+    conn.insert(&duck(3, "Darkwing Duck"))?;
 
-    conn.create_table::<Ducks>()?;
+    // Existing key: ignored (0) or updated.
+    assert_eq!(conn.insert_or_ignore(&duck(3, "Ignored"))?, 0);
+    conn.upsert(&duck(3, "Darkwing"))?;
 
-    conn.insert_batch(&[
-        Ducks {
-            id: 1,
-            name: "Scrooge".into(),
-            age: 75,
-            wealth: 999_999_999.99,
-            can_fly: false,
-            bio: Some("Richest duck in the world".into()),
-        },
-        Ducks {
-            id: 2,
-            name: "Donald".into(),
-            age: 92,
-            wealth: 1.50,
-            can_fly: true,
-            bio: None,
-        },
-        Ducks {
-            id: 3,
-            name: "Darkwing Duck".into(),
-            age: 35,
-            wealth: 250.00,
-            can_fly: false,
-            bio: Some("I am the terror that flaps in the night".into()),
-        },
-    ])?;
+    // Update columns by key.
+    assert_eq!(conn.update(&duck(1, "Donald"))?, 1);
 
-    println!("db saved with path: {}", db_path);
+    // Insert and read the stored row back.
+    let huey = conn.insert_returning(&duck(4, "Huey"))?;
+    assert_eq!(huey, duck(4, "Huey"));
 
+    // Look up by key.
+    assert_eq!(conn.find::<Duck, _>([1])?, Some(duck(1, "Donald")));
+    assert_eq!(conn.find::<Duck, _>([99])?, None);
+
+    // Delete by key (only the key fields are used).
+    assert_eq!(conn.delete(&duck(2, ""))?, 1);
+
+    // Typed queries; columns are matched by name.
+    let ducks: Vec<Duck> = conn.query_as("FROM duck ORDER BY id", [])?;
+    for d in &ducks {
+        println!("{}) {}", d.id, d.name);
+    }
+    assert_eq!(
+        ducks,
+        vec![duck(1, "Donald"), duck(3, "Darkwing"), duck(4, "Huey")]
+    );
+
+    let first: Duck = conn.query_one("FROM duck ORDER BY id", [])?;
+    assert_eq!(first.id, 1);
+    let missing: Option<Duck> = conn.query_optional("FROM duck WHERE id = ?", [99])?;
+    assert!(missing.is_none());
+    assert_eq!(conn.select_all::<Duck>()?.len(), 3);
+
+    // Composite key: pass the key values in field order.
+    conn.create_table::<Enrollment>()?;
+    conn.insert(&Enrollment {
+        duck_id: 1,
+        course_id: 10,
+        grade: 5,
+    })?;
+    conn.upsert(&Enrollment {
+        duck_id: 1,
+        course_id: 10,
+        grade: 9,
+    })?;
+    let e = conn
+        .find::<Enrollment, _>([1, 10])?
+        .expect("enrollment exists");
+    assert_eq!(e.grade, 9);
+
+    println!("ok");
     Ok(())
 }

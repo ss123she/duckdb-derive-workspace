@@ -57,6 +57,15 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
         if is_pk && single_pk {
             constraints.push("PRIMARY KEY".to_string());
         }
+        if f.unique {
+            constraints.push("UNIQUE".to_string());
+        }
+        if let Some(d) = &f.default {
+            constraints.push(format!("DEFAULT {d}"));
+        }
+        if let Some(c) = &f.check {
+            constraints.push(format!("CHECK ({c})"));
+        }
         if let Some(fk) = &f.foreign_key {
             constraints.push(format!("REFERENCES {fk}"));
         }

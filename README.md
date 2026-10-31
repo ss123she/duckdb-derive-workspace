@@ -14,7 +14,7 @@ Ergonomic derive macros and extensions for [duckdb-rs](https://github.com/duckdb
 - Generate `CREATE TABLE` DDL directly from struct definitions
 - Infer `NOT NULL` constraints for non-`Option<T>` fields
 - Bulk insert via DuckDB's native columnar `Appender`
-- Zero runtime overhead. No heavy ORM or query builders
+- No ORM, no query builder. Just derives and a small `Connection` extension trait
 
 ---
 
@@ -43,7 +43,7 @@ struct Duck {
 fn main() -> duckdb::Result<()> {
     let conn = Connection::open_in_memory()?;
 
-    // Creates: CREATE TABLE IF NOT EXISTS duck ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL);
+    // Creates: CREATE TABLE IF NOT EXISTS "duck" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL);
     conn.create_table::<Duck>()?;
 
     // Bulk insertion via Appender
@@ -57,7 +57,6 @@ fn main() -> duckdb::Result<()> {
 
     // Query into typed structs (columns matched by name)
     let ducks: Vec<Duck> = conn.query_as("FROM duck ORDER BY id", [])?;
-
     for duck in ducks {
         println!("{}) {}", duck.id, duck.name);
     }
@@ -65,6 +64,38 @@ fn main() -> duckdb::Result<()> {
     Ok(())
 }
 ```
+
+---
+
+## Examples
+
+- [`minimal.rs`](https://github.com/ss123she/duckdb-derive-workspace/blob/main/duckdb-derive/examples/minimal.rs): create a table, insert, query
+- [`table.rs`](https://github.com/ss123she/duckdb-derive-workspace/blob/main/duckdb-derive/examples/table.rs): full tour (upsert, update, delete, find, composite keys)
+
+Run one with `cargo run --example minimal`.
+
+---
+
+## Extension methods
+
+All methods live on `DuckDbExt`, implemented for `duckdb::Connection`.
+
+| Method | Does |
+| :--- | :--- |
+| `create_table::<T>()` | `CREATE TABLE IF NOT EXISTS` |
+| `insert(&t)` | `INSERT` one row (columns named explicitly) |
+| `insert_batch(&[t])` | `INSERT` many rows via `Appender` |
+| `insert_or_ignore(&t)` | `INSERT ... ON CONFLICT DO NOTHING` |
+| `insert_returning(&t)` | `INSERT ... RETURNING *`, read back as `T` |
+| `upsert(&t)` | `INSERT ... ON CONFLICT DO UPDATE` |
+| `update(&t)` | `UPDATE` non-key columns by primary key |
+| `delete(&t)` | `DELETE` by primary key |
+| `find::<T, _>(key)` | `SELECT` one row by primary key |
+| `select_all::<T>()` | `SELECT *` every row |
+| `query_as::<T, _>(sql, params)` | Run a query, collect `Vec<T>` |
+| `query_one` / `query_optional` | First row, as `T` / `Option<T>` |
+
+`upsert`, `update`, `delete` and `find` need a `#[duckdb(primary_key)]` field. Mark several fields with `primary_key` for a composite key, and pass the key values in field order to `find`.
 
 ---
 
@@ -109,8 +140,11 @@ struct Duck {
 | `rename = "col"` | Field | Custom column name |
 | `foreign_key = "tbl(col)"` | Field | Add `REFERENCES tbl(col)` |
 | `sql_type = "TYPE"` | Field | Override SQL type |
-| `extra = "SQL"` | Field | Append raw SQL (`DEFAULT`, `CHECK`) |
-| `skip` | Field | Skip field (uses `Default`) |
+| `extra = "SQL"` | Field | Append any other raw SQL |
+| `skip` | Field | Skip field (uses `Default` when reading) |
+| `unique` | Field | Add `UNIQUE` |
+| `default = "SQL"` | Field | Add `DEFAULT SQL` (raw SQL: strings need inner quotes, `"'new'"`) |
+| `check = "SQL"` | Field | Add `CHECK (SQL)` |
 
 ---
 
@@ -123,13 +157,23 @@ struct Duck {
 | `bool`, `String`, `Vec<u8>` | `BOOLEAN`, `TEXT`, `BLOB` |
 | `Option<T>` | Nullable (non-`Option` types default to `NOT NULL`) |
 
+### Optional feature flags
+
+| Feature | Adds |
+| :--- | :--- |
+| `chrono` | `NaiveDate`, `NaiveTime`, `NaiveDateTime`, `DateTime<Utc>` |
+| `uuid` | `Uuid` -> `UUID` |
+| `rust_decimal` | `Decimal` -> `DECIMAL` (DuckDB default `DECIMAL(18,3)`; use `sql_type` for other precision) |
+| `serde_json` | `serde_json::Value` -> `JSON` |
+| `extra-types` | all of the above |
+| `bundled` | build DuckDB from source (forwards to `duckdb/bundled`) |
 ---
 
 ## License
 
 Licensed under either of:
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/ss123she/duckdb-derive-workspace/blob/main/LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](https://github.com/ss123she/duckdb-derive-workspace/blob/main/LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
