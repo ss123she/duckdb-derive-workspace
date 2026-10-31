@@ -32,10 +32,8 @@ jobs:
           shared-key: ci
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Reset libduckdb-sys build state
-        run: |
-          rm -rf target/debug/build/libduckdb-sys-*
-          rm -rf target/debug/.fingerprint/libduckdb-sys-*
+      - name: Remove stale DuckDB source cache
+        run: rm -rf target/duckdb-sources target/*/duckdb-sources
 
       - name: Run Tests
         run: cargo test --all-features --locked
