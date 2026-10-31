@@ -99,3 +99,12 @@ pub(crate) fn split_params<T: Table + ToRow>(
     }
     (rest, key)
 }
+
+pub(crate) fn select_by_key<T: Table>() -> String {
+    require_pk::<T>();
+    format!(
+        "SELECT * FROM {} WHERE {}",
+        quote_ident(T::TABLE_NAME),
+        pk_predicate::<T>(),
+    )
+}

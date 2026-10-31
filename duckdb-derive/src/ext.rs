@@ -1,37 +1,73 @@
-use crate::{FromRow, Table, ToRow, sql};
+use crate::{FromRow, Table, ToRow, quote_ident, sql};
 
 /// Extension methods for [`duckdb::Connection`].
 pub trait DuckDbExt {
-    /// Executes a SQL query and deserializes rows into `Vec<T>`.
-    fn query_as<'a, T: FromRow, P: duckdb::Params>(
-        &'a self,
-        sql: &str,
-        params: P,
-    ) -> Result<Vec<T>, duckdb::Error>;
-
     /// `CREATE TABLE IF NOT EXISTS` for `T`.
     fn create_table<T: Table>(&self) -> Result<usize, duckdb::Error>;
 
-    /// `INSERT` one row; returns rows inserted.
-    fn insert<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error>;
+    /// `INSERT` one row. Returns rows inserted.
+    fn insert<T>(&self, item: &T) -> Result<usize, duckdb::Error>
+    where
+        T: Table + ToRow;
 
-    /// `INSERT` many rows via the `Appender`; columns are matched by position.
-    fn insert_batch<T: Table + ToRow>(&self, items: &[T]) -> Result<(), duckdb::Error>;
+    /// `INSERT` many rows via the `Appender`. Columns are matched by position.
+    fn insert_batch<T>(&self, items: &[T]) -> Result<(), duckdb::Error>
+    where
+        T: Table + ToRow;
 
-    /// `INSERT ... ON CONFLICT DO UPDATE`; returns rows affected.
-    fn upsert<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error>;
+    /// `INSERT ... ON CONFLICT DO UPDATE`. Returns rows affected.
+    fn upsert<T>(&self, item: &T) -> Result<usize, duckdb::Error>
+    where
+        T: Table + ToRow;
 
-    /// `INSERT ... ON CONFLICT DO NOTHING`; returns 0 if the row existed.
-    fn insert_or_ignore<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error>;
+    /// `INSERT ... ON CONFLICT DO NOTHING`. Returns 0 if the row existed.
+    fn insert_or_ignore<T>(&self, item: &T) -> Result<usize, duckdb::Error>
+    where
+        T: Table + ToRow;
 
-    /// `UPDATE` non-key columns by key; returns rows updated.
-    fn update<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error>;
+    /// `UPDATE` non-key columns by key. Returns rows updated.
+    fn update<T>(&self, item: &T) -> Result<usize, duckdb::Error>
+    where
+        T: Table + ToRow;
 
-    /// `DELETE` by key; returns rows deleted.
-    fn delete<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error>;
+    /// `DELETE` by key. Returns rows deleted.
+    fn delete<T>(&self, item: &T) -> Result<usize, duckdb::Error>
+    where
+        T: Table + ToRow;
 
     /// `INSERT ... RETURNING *`, read back as `T`.
-    fn insert_returning<T: Table + ToRow + FromRow>(&self, item: &T) -> Result<T, duckdb::Error>;
+    fn insert_returning<T>(&self, item: &T) -> Result<T, duckdb::Error>
+    where
+        T: Table + ToRow + FromRow;
+
+    /// Runs a query and collects the rows as `Vec<T>`.
+    fn query_as<T, P>(&self, sql: &str, params: P) -> Result<Vec<T>, duckdb::Error>
+    where
+        T: FromRow,
+        P: duckdb::Params;
+
+    /// Runs a query and returns the first row, or `None` if there are none.
+    fn query_optional<T, P>(&self, sql: &str, params: P) -> Result<Option<T>, duckdb::Error>
+    where
+        T: FromRow,
+        P: duckdb::Params;
+
+    /// Runs a query and returns the first row. Errors if there are none.
+    fn query_one<T, P>(&self, sql: &str, params: P) -> Result<T, duckdb::Error>
+    where
+        T: FromRow,
+        P: duckdb::Params;
+
+    /// `SELECT *` every row of `T`'s table.
+    fn select_all<T>(&self) -> Result<Vec<T>, duckdb::Error>
+    where
+        T: Table + FromRow;
+
+    /// `SELECT` one row by primary key. Pass key values in field order.
+    fn find<T, P>(&self, key: P) -> Result<Option<T>, duckdb::Error>
+    where
+        T: Table + FromRow,
+        P: duckdb::Params;
 }
 
 impl DuckDbExt for duckdb::Connection {
@@ -102,5 +138,38 @@ impl DuckDbExt for duckdb::Connection {
             Some(row) => T::from_row(row, &indices),
             None => Err(duckdb::Error::QueryReturnedNoRows),
         }
+    }
+
+    fn query_optional<T: FromRow, P: duckdb::Params>(
+        &self,
+        sql: &str,
+        params: P,
+    ) -> Result<Option<T>, duckdb::Error> {
+        let mut stmt = self.prepare(sql)?;
+        let mut rows = stmt.query(params)?;
+        let indices = T::init_indices(rows.as_ref().expect("statement executed"))?;
+        rows.next()?
+            .map(|row| T::from_row(row, &indices))
+            .transpose()
+    }
+
+    fn query_one<T: FromRow, P: duckdb::Params>(
+        &self,
+        sql: &str,
+        params: P,
+    ) -> Result<T, duckdb::Error> {
+        self.query_optional(sql, params)?
+            .ok_or(duckdb::Error::QueryReturnedNoRows)
+    }
+
+    fn select_all<T: Table + FromRow>(&self) -> Result<Vec<T>, duckdb::Error> {
+        self.query_as(&format!("SELECT * FROM {}", quote_ident(T::TABLE_NAME)), [])
+    }
+
+    fn find<T: Table + FromRow, P: duckdb::Params>(
+        &self,
+        key: P,
+    ) -> Result<Option<T>, duckdb::Error> {
+        self.query_optional(&sql::select_by_key::<T>(), key)
     }
 }
