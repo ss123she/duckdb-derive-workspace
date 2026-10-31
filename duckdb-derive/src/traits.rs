@@ -36,6 +36,9 @@ pub trait Table {
     /// Target table name in DuckDB
     const TABLE_NAME: &'static str;
 
+    /// Primary key column names, in field order. Empty if none declared.
+    const PRIMARY_KEY: &'static [&'static str] = &[];
+
     /// Generates the `CREATE TABLE IF NOT EXISTS` statement based on struct fields.
     fn create_table_sql() -> String;
 }

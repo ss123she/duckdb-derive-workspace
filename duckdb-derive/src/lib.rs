@@ -46,6 +46,7 @@
 
 mod column_type;
 mod ext;
+mod sql;
 mod traits;
 
 pub use column_type::ColumnType;

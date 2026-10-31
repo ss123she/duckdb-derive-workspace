@@ -31,13 +31,30 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
     let table_name = parse_table_name(input)?;
     let fields = extract_fields(input)?;
 
+    let pk_cols: Vec<&String> = fields
+        .iter()
+        .filter(|f| !f.skip && f.is_primary_key)
+        .map(|f| &f.column_name)
+        .collect();
+    let single_pk = pk_cols.len() == 1;
+    let table_pk = if pk_cols.len() > 1 {
+        let cols = pk_cols
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(", PRIMARY KEY ({cols})")
+    } else {
+        String::new()
+    };
+
     let column_defs = fields.iter().filter(|f| !f.skip).map(|f| {
         let quoted_col = quote_ident(&f.column_name);
         let ty = f.ty;
         let is_pk = f.is_primary_key;
 
         let mut constraints = Vec::new();
-        if is_pk {
+        if is_pk && single_pk {
             constraints.push("PRIMARY KEY".to_string());
         }
         if let Some(fk) = &f.foreign_key {
@@ -80,13 +97,15 @@ pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
     Ok(quote! {
         impl #impl_generics duckdb_derive::Table for #name #ty_generics #where_clause {
             const TABLE_NAME: &'static str = #table_name;
+            const PRIMARY_KEY: &'static [&'static str] = &[ #(#pk_cols),* ];
 
             fn create_table_sql() -> String {
                 let cols = [ #(#column_defs),* ];
                 format!(
-                    "CREATE TABLE IF NOT EXISTS {} ({});",
+                    "CREATE TABLE IF NOT EXISTS {} ({}{});",
                     duckdb_derive::quote_ident(Self::TABLE_NAME),
-                    cols.join(", ")
+                    cols.join(", "),
+                    #table_pk
                 )
             }
         }
