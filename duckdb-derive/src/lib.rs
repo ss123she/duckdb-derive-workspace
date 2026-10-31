@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! duckdb-derive is an ergonomic derive-macros for duckdb in Rust.
 //!
 //! ### The Official DuckDB Example rewritten with `duckdb-derive`:
@@ -62,8 +64,11 @@ pub trait FromRow: Sized {
 ///
 /// derived via `#[derive(ToRow)]`.
 pub trait ToRow {
-    /// Total number of columns.
+    /// Number of columns.
     const COLUMN_COUNT: usize;
+
+    /// Column names, in field order.
+    const COLUMNS: &'static [&'static str];
 
     /// comma-separated placeholder str.
     const PLACEHOLDERS: &'static str;
@@ -125,13 +130,18 @@ impl DuckDbExt for duckdb::Connection {
     }
 
     fn insert<T: Table + ToRow>(&self, item: &T) -> Result<usize, duckdb::Error> {
+        let columns = T::COLUMNS
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
-            "INSERT INTO \"{}\" VALUES ({})",
-            T::TABLE_NAME,
+            "INSERT INTO {} ({}) VALUES ({})",
+            quote_ident(T::TABLE_NAME),
+            columns,
             T::PLACEHOLDERS
         );
-        let params = item.to_params();
-        self.execute(&sql, params.as_slice())
+        self.execute(&sql, item.to_params().as_slice())
     }
 
     fn insert_batch<T: Table + ToRow>(&self, items: &[T]) -> Result<(), duckdb::Error> {
@@ -223,4 +233,10 @@ impl ColumnType for serde_json::Value {
     fn sql_type() -> &'static str {
         "JSON"
     }
+}
+
+/// Quotes an SQL identifier, escaping embedded `"`.
+#[doc(hidden)]
+pub fn quote_ident(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
 }
