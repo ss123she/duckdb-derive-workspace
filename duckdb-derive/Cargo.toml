@@ -10,8 +10,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [package.metadata.docs.rs]
-features = ["extra-types"]
+features = ["bundled", "extra-types"]
 rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["--config", "profile.dev.package.libduckdb-sys.debug=false"]
 
 [dependencies]
 duckdb-derive-macros = { workspace = true }
