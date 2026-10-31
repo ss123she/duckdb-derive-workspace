@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [package.metadata.docs.rs]
-features = ["bundled", "extra-types"]
+features = ["extra-types"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
